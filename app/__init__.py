@@ -8,8 +8,4 @@ def create_app():
     # 配置特定来源
     # CORS(app, resources={r"/*": {"origins": ["http://localhost:3000"]}})
     
-    # 注册路由
-    from app.routes.deepseek import deepseek_bp
-    app.register_blueprint(deepseek_bp)
-    
     return app
