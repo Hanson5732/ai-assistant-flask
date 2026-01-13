@@ -1,5 +1,5 @@
 import oss2
-from app.utils.oss_info_utils import get_oss_config
+from app.utils.get_config import get_oss_config
 
 def upload_file(file_path, object):
     # read config

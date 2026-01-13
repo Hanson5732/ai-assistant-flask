@@ -3,7 +3,7 @@ from app import create_app
 app = create_app()
 
 # 注册路由
-app.route('', methods=['POST'])()
+app.route('/api/process-paper', methods=['POST'])(process_paper)
 
 
 
