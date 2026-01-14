@@ -3,7 +3,7 @@ from flask import request, Blueprint
 from app.utils import pdf_handler
 from app.utils.pdf_handler import PDFHandler
 from app.constant.standard_response import Response
-from app.api_functions.contextual_QA import deepseek_ocr_api
+from app.api_functions.contextual_QA import deepseek_ocr_api, generate_final_summary
 
 
 ocr_bp = Blueprint('ocr', __name__)

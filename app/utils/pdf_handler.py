@@ -2,7 +2,6 @@ import os
 import logging
 import fitz
 import io
-from PIL import Image
 
 logger = logging.getLogger(__name__)
 
@@ -10,18 +9,15 @@ class PDFHandler:
     def __init__(self):
         self.supported_extensions = ['.pdf', '.PDF']
 
-    def validate_pdf(self, file_path: str) -> bool:
+    def validate_pdf(self, file_content: bytes, filename: str) -> bool:
         try:
-            extension = os.path.splitext(file_path)[1].lower()
+            extension = os.path.splitext(filename)[1].lower()
             if extension not in self.supported_extensions:
                 logger.error(f'file extension {extension} is not supported')
                 return False
 
-            if not os.path.exists(file_path):
-                logger.error(f'file {file_path} does not exist')
-                return False
-
-            file_size = os.path.getsize(file_path)
+            file_size = len(file_content)
+            
             if file_size > 20 * 1024 * 1024:  # 20MB
                 logger.error(f"file size {file_size / 1024 / 1024:.2f}MB exceeds 20MB limit")
                 return False
@@ -33,7 +29,7 @@ class PDFHandler:
             return False
 
     @staticmethod
-    def convert_pdf_to_images(file_stream, dpi=200):
+    def convert_pdf_to_images(file_stream: io.BytesIO, dpi=200):
         try:
             # 1. load pdf document
             doc = fitz.open(stream=file_stream, filetype='pdf')

@@ -30,7 +30,7 @@ def generate_final_summary(full_text: str, size: str):
     if size == 'small':
         req = '5. 总结的长度在5-8句话'
     elif size == 'medium':
-        req = '5. 总结的长度在10-15句话，中间对发现的新问题或提出的新方法、及实验结果作5-8句话描述'
+        req = '5. 总结的长度在10-12句话，中间对发现的新问题或提出的新方法、及实验结果作5-8句话描述'
     elif size == 'large':
         req = '5. 总结包含论文研究的原因、发现的新问题或提出的新方法、实验及结果、作者最后的总结作详细的描述'
 
@@ -42,7 +42,7 @@ def generate_final_summary(full_text: str, size: str):
     )
 
     response = client.chat.completions.create(
-        model="deepseek-V3.2",
+        model="deepseek-v3.2",
         messages=[{
             "role": "user", 
             "content": [
