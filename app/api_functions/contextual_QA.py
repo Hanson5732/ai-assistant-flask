@@ -1,5 +1,6 @@
 import openai
 from app.utils.get_config import get_openai_config
+from app.utils.get_prompts import get_summary_prompt
 
 def deepseek_ocr_api(base64_img: str):
     openai_config = get_openai_config()
@@ -26,39 +27,25 @@ def generate_final_summary(full_text: str, size: str):
     if size not in ['small', 'medium', 'large']:
         size = 'medium'
     
-    req=''
-    if size == 'small':
-        req = '5. 总结的长度在5-8句话'
-    elif size == 'medium':
-        req = '5. 总结的长度在10-12句话，中间对发现的新问题或提出的新方法、及实验结果作5-8句话描述'
-    elif size == 'large':
-        req = '5. 总结包含论文研究的原因、发现的新问题或提出的新方法、实验及结果、作者最后的总结作详细的描述'
-
-    
     openai_config = get_openai_config()
     client = openai.OpenAI(
         api_key=openai_config['api_key'],
         base_url=openai_config['base_url']
     )
 
+    summary_prompt = get_summary_prompt()
+    summary_prompt['req'] = summary_prompt['req'].format(full_text=full_text, size=size)
+
     response = client.chat.completions.create(
         model="deepseek-v3.2",
+        temperature=0.1,
         messages=[{
+            "role": "system", 
+            "content": summary_prompt['system_prompt']
+        },
+        {
             "role": "user", 
-            "content": [
-                { 
-                    "type": "text", 
-                    "text": f"""
-                    请对以下论文内容进行总结，要求：
-                    1. 保持逻辑连贯性
-                    2. 提取主要内容
-                    3. 保持原文的排版逻辑
-                    4. 使用英文进行总结
-                    {req}
-                    """ 
-                },
-                { "type": "text", "text": full_text }
-            ]
+            "content": summary_prompt['req']
         }]
     )
 

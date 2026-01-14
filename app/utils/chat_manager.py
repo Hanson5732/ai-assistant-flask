@@ -3,7 +3,7 @@ import json
 from app.utils.get_config import get_redis_config
 
 class ChatContextManager:
-    def __init__(self, expire=3600*24):
+    def __init__(self, expire=3600*24*7):
         redis_config = get_redis_config()
         self.redis = redis.StrictRedis(
             host=redis_config['host'], 
