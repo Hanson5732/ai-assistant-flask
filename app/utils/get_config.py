@@ -2,7 +2,7 @@ import configparser
 
 def get_oss_config():
     config = configparser.ConfigParser()
-    config.read('config.ini')
+    config.read('config.ini', encoding='utf-8')
     oss_config = config['oss']
     return {
         'access_key_id': oss_config.get('OSS_ACCESS_KEY_ID'),
@@ -13,7 +13,7 @@ def get_oss_config():
 
 def get_openai_config():
     config = configparser.ConfigParser()
-    config.read('config.ini')
+    config.read('config.ini', encoding='utf-8')
     openai_config = config['openai']
     return {
         'api_key': openai_config.get('OPENAI_API_KEY'),
@@ -23,7 +23,7 @@ def get_openai_config():
 
 def get_redis_config():
     config = configparser.ConfigParser()
-    config.read('config.ini')
+    config.read('config.ini', encoding='utf-8')
     redis_config = config['redis']
     return {
         'host': redis_config.get('REDIS_HOST'),

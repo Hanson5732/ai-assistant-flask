@@ -36,17 +36,18 @@ def generate_final_summary(full_text: str, size: str):
     summary_prompt = get_summary_prompt()
     summary_prompt['req'] = summary_prompt['req'].format(full_text=full_text, size=size)
 
+    # 开启 stream=True
     response = client.chat.completions.create(
         model="deepseek-v3.2",
         temperature=0.1,
-        messages=[{
-            "role": "system", 
-            "content": summary_prompt['system_prompt']
-        },
-        {
-            "role": "user", 
-            "content": summary_prompt['req']
-        }]
+        messages=[
+            {"role": "system", "content": summary_prompt['system_prompt']},
+            {"role": "user", "content": summary_prompt['req']}
+        ],
+        stream=True
     )
 
-    return response.choices[0].message.content
+    # 逐块返回内容
+    for chunk in response:
+        if chunk.choices[0].delta.content:
+            yield chunk.choices[0].delta.content 

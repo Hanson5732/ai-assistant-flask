@@ -1,5 +1,6 @@
 import base64
 from flask import request, Blueprint
+from flask import Response as FlaskResponse
 from app.utils import pdf_handler
 from app.utils.pdf_handler import PDFHandler
 from app.constant.standard_response import Response
@@ -32,14 +33,12 @@ def process_paper():
             full_text.append(f'--- Page {idx+1} ---\n{ocr_text}')
 
         # 将全文拼接后，再调用一次 DeepSeek 进行最终总结
-        final_summary = generate_final_summary('\n'.join(full_text), size)
-        print(final_summary)
-        return Response.success_with_data(
-            message='Paper processed successfully', 
-            data={
-                "summary": final_summary,
-                "page_count": len(full_text)
-            })
+
+        def generate():
+            for delta in generate_final_summary('\n'.join(full_text), size):
+                yield delta
+
+        return FlaskResponse(generate(), mimetype='text/event-stream')
 
     except Exception as e:
         return Response.error(f"error: {str(e)}"), 500
