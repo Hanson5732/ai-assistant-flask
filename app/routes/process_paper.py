@@ -1,44 +1,85 @@
 import base64
-from flask import request, Blueprint
-from flask import Response as FlaskResponse
-from app.utils import pdf_handler
+import uuid
+import logging
+from flask import request, Blueprint, Response as FlaskResponse
+from langchain_core.runnables import RunnableParallel, RunnableLambda
 from app.utils.pdf_handler import PDFHandler
 from app.constant.standard_response import Response
-from app.api_functions.contextual_QA import deepseek_ocr_api, generate_final_summary
-
+from app.utils.chat_manager import ChatContextManager
+from app.utils.get_prompts import get_summary_prompt
+from app.api_functions.contextual_QA import get_ocr_chain, get_summary_chain
 
 ocr_bp = Blueprint('ocr', __name__)
 pdf_handler = PDFHandler()
+logger = logging.getLogger(__name__)
 
-@ocr_bp.route('/api/process-paper', methods=['POST'])
-def process_paper():
+@ocr_bp.route('/api/concurrent', methods=['POST'])
+def concurrent_langchain():
     file = request.files.get('file')
     size = request.form.get('size', 'medium')
-    if not file:
-        return Response.error('No file part'), 400
+    session_id = request.form.get('sessionId')
+    if not session_id or session_id == 'null' or session_id == 'undefined':
+        session_id = str(uuid.uuid4())
 
+    if not file: return Response.error('No file part'), 400
+    
     file_content = file.read()
     if not pdf_handler.validate_pdf(file_content, file.filename):
         return Response.error('Invalid PDF file'), 400
 
-    try:
-        full_text = []
+    def generate_stream():
+        chat_manager = ChatContextManager()
+        yield f"SESSION_ID:{session_id}\n"
 
-        for idx, img_bytes in enumerate(pdf_handler.convert_pdf_to_images(file_content)):
-            # 编码为 base64 字符串
-            img_base64 = base64.b64encode(img_bytes).decode('utf-8')
+        try:
+            # 1. 准备图片数据
+            img_list = list(pdf_handler.convert_pdf_to_images(file_content))
             
-            # 调用 DeepSeek OCR API
-            ocr_text = deepseek_ocr_api(img_base64)
-            full_text.append(f'--- Page {idx+1} ---\n{ocr_text}')
+            # 2. 构建并行 OCR 任务字典
+            # 使用 RunnableParallel 自动处理多线程并发
+            ocr_chain = get_ocr_chain()
+            parallel_ocr_tasks = {}
+            for i, img in enumerate(img_list):
+                img_b64 = base64.b64encode(img).decode('utf-8')
+                # 为每一页创建一个独立的调用任务
+                parallel_ocr_tasks[f"page_{i}"] = (
+                    RunnableLambda(lambda x, b=img_b64: {"base64_img": b}) | ocr_chain
+                )
 
-        # 将全文拼接后，再调用一次 DeepSeek 进行最终总结
+            parallel_runnable = RunnableParallel(**parallel_ocr_tasks)
+            
+            # 3. 执行并行 OCR (LangChain 内部会使用线程池)
+            # 这里的 config 可以设置 max_concurrency 限制并发数
+            ocr_results = parallel_runnable.invoke({}, config={"max_concurrency": 10})
 
-        def generate():
-            for delta in generate_final_summary('\n'.join(full_text), size):
-                yield delta
+            # 4. 汇总文本
+            
+            full_paper_text = ""
+            for i in range(len(img_list)):
+                page_text = ocr_results.get(f"page_{i}", "[OCR Error]")
+                full_paper_text += f"--- Page {i+1} ---\n{page_text}\n"
 
-        return FlaskResponse(generate(), mimetype='text/event-stream')
+            # 5. 调用总结 Chain 并流式输出
+            raw_prompt_data = get_summary_prompt()
+            final_user_input = raw_prompt_data['req'].format(full_text=full_paper_text, size=size)
+            summary_chain = get_summary_chain()
+            full_summary_text = ""
+            
+            # stream 方法返回生成器
+            for chunk in summary_chain.stream({"full_text": full_paper_text, "size": size}):
+                full_summary_text += chunk
+                yield chunk
 
-    except Exception as e:
-        return Response.error(f"error: {str(e)}"), 500
+            # 6. 保存历史
+            if full_summary_text:
+                history = chat_manager.get_history(session_id)
+                history.append({"role": "system", "content": raw_prompt_data['system_prompt']})
+                history.append({"role": "user", "content": final_user_input})
+                history.append({"role": "assistant", "content": full_summary_text})
+                chat_manager.save_history(session_id, history)
+
+        except Exception as e:
+            logger.error(f"LangChain Workflow error: {str(e)}", exc_info=True)
+            yield f"Error: {str(e)}"
+
+    return FlaskResponse(generate_stream(), mimetype='text/event-stream')

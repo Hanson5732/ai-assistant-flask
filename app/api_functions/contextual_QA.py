@@ -1,53 +1,43 @@
-import openai
+from langchain_openai import ChatOpenAI
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
 from app.utils.get_config import get_openai_config
 from app.utils.get_prompts import get_summary_prompt
 
-def deepseek_ocr_api(base64_img: str):
-    openai_config = get_openai_config()
-    client = openai.OpenAI(
-        api_key=openai_config['api_key'],
-        base_url=openai_config['base_url']
-    )
-
-    response = client.chat.completions.create(
+def get_ocr_chain():
+    config = get_openai_config()
+    # 实例化 OCR 模型
+    llm = ChatOpenAI(
         model="deepseek-ocr",
-        messages=[{
-            "role": "user", 
-            "content": [
-                { "type": "text", "text": "请识别这张论文图片中的文字，保持排版逻辑" },
-                { "type": "image_url", "image_url": { "url": f"data:image/jpeg;base64,{base64_img}" } }
-            ]
-        }]
+        openai_api_key=config['api_key'],
+        openai_api_base=config['base_url']
     )
-
-    return response.choices[0].message.content
-
-
-def generate_final_summary(full_text: str, size: str):
-    if size not in ['small', 'medium', 'large']:
-        size = 'medium'
     
-    openai_config = get_openai_config()
-    client = openai.OpenAI(
-        api_key=openai_config['api_key'],
-        base_url=openai_config['base_url']
-    )
+    # 定义 OCR Prompt
+    prompt = ChatPromptTemplate.from_messages([
+        ("user", [
+            {"type": "text", "text": "请识别这张论文图片中的文字，保持排版逻辑"},
+            {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,{base64_img}"}}
+        ])
+    ])
+    
+    return prompt | llm | StrOutputParser()
 
-    summary_prompt = get_summary_prompt()
-    summary_prompt['req'] = summary_prompt['req'].format(full_text=full_text, size=size)
-
-    # 开启 stream=True
-    response = client.chat.completions.create(
+def get_summary_chain():
+    config = get_openai_config()
+    # 实例化总结模型
+    llm = ChatOpenAI(
         model="deepseek-v3.2",
+        openai_api_key=config['api_key'],
+        openai_api_base=config['base_url'],
         temperature=0.1,
-        messages=[
-            {"role": "system", "content": summary_prompt['system_prompt']},
-            {"role": "user", "content": summary_prompt['req']}
-        ],
-        stream=True
+        streaming=True
     )
-
-    # 逐块返回内容
-    for chunk in response:
-        if chunk.choices[0].delta.content:
-            yield chunk.choices[0].delta.content 
+    
+    prompt_data = get_summary_prompt()
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", prompt_data['system_prompt']),
+        ("user", prompt_data['req'])
+    ])
+    
+    return prompt | llm | StrOutputParser()

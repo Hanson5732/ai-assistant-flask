@@ -3,3 +3,5 @@ config.ini
 #python
 __pycache__/
 *.pyc
+
+*.log
