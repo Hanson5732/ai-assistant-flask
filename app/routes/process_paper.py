@@ -7,7 +7,7 @@ from app.utils.pdf_handler import PDFHandler
 from app.constant.standard_response import Response
 from app.utils.chat_manager import ChatContextManager
 from app.utils.get_prompts import get_summary_prompt
-from app.api_functions.contextual_QA import get_ocr_chain, get_summary_chain
+from app.api_functions.contextual_QA import get_ocr_chain, get_summary_chain, get_chat_chain
 
 ocr_bp = Blueprint('ocr', __name__)
 pdf_handler = PDFHandler()
@@ -83,3 +83,27 @@ def concurrent_langchain():
             yield f"Error: {str(e)}"
 
     return FlaskResponse(generate_stream(), mimetype='text/event-stream')
+
+
+@ocr_bp.route('/api/chat', methods=['POST'])
+def chat():
+    user_input = request.json.get('message')
+    session_id = request.json.get('sessionId')
+    
+    chat_manager = ChatContextManager()
+    history_msgs = chat_manager.get_history(session_id)
+    
+    chain = get_chat_chain(session_id)
+    
+    # 执行对话
+    response = chain.invoke({
+        "history": history_msgs,
+        "input": user_input
+    })
+    
+    # 更新历史记录
+    history_msgs.append({"role": "user", "content": user_input})
+    history_msgs.append({"role": "assistant", "content": response.content})
+    chat_manager.save_history(session_id, history_msgs)
+    
+    return {"answer": response.content}
