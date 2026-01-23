@@ -13,7 +13,7 @@ ocr_bp = Blueprint('ocr', __name__)
 pdf_handler = PDFHandler()
 logger = logging.getLogger(__name__)
 
-@ocr_bp.route('/api/concurrent', methods=['POST'])
+@ocr_bp.route('/api/process-paper', methods=['POST'])
 def concurrent_langchain():
     file = request.files.get('file')
     size = request.form.get('size', 'medium')
@@ -89,21 +89,30 @@ def concurrent_langchain():
 def chat():
     user_input = request.json.get('message')
     session_id = request.json.get('sessionId')
+
+    if not session_id:
+        return Response.error('No sessionId provided'), 400
     
     chat_manager = ChatContextManager()
-    history_msgs = chat_manager.get_history(session_id)
     
-    chain = get_chat_chain(session_id)
     
-    # 执行对话
-    response = chain.invoke({
-        "history": history_msgs,
-        "input": user_input
-    })
+    def generate():
+        chain = get_chat_chain(session_id)
+        history_msgs = chat_manager.get_history(session_id)
     
-    # 更新历史记录
-    history_msgs.append({"role": "user", "content": user_input})
-    history_msgs.append({"role": "assistant", "content": response.content})
-    chat_manager.save_history(session_id, history_msgs)
+        full_response = ""
+        for chunk in chain.streamI({
+            "history": history_msgs,
+            "input": user_input
+        }):
+            # 如果 chunk 是消息对象，提取 content 内容
+            content = chunk.content if hasattr(chunk, 'content') else str(chunk)
+            full_response += content
+            yield content
     
-    return {"answer": response.content}
+        # 更新历史记录
+        history_msgs.append({"role": "user", "content": user_input})
+        history_msgs.append({"role": "assistant", "content": full_response})
+        chat_manager.save_history(session_id, history_msgs)
+    
+    return FlaskResponse(generate(), mimetype='text/event-stream')
