@@ -16,24 +16,38 @@ class ChatContextManager:
     def _get_key(self, session_id):
         return f"chat_history:{session_id}"
 
-    def get_history(self, session_id):
-        """获取指定会话的历史记录"""
-        key = self._get_key(session_id)
-        data = self.redis.get(key)
-        if data:
-            return json.loads(data)
-        # 如果是新会话，初始化 System Prompt
-        return [{"role": "system", "content": "你是一个专业的学术助手。"}]
+    def save_paper_context(self, session_id, summary_text):
+        """专门保存论文总结作为后续对话的持久背景"""
+        key = f"paper_context:{session_id}"
+        self.redis.setex(key, self.expire, summary_text)
 
+    def get_history(self, session_id):
+        """获取历史记录，并将论文背景注入到 System Message 中"""
+        # 获取对话历史
+        history_key = f"chat_history:{session_id}"
+        data = self.redis.get(history_key)
+        history = json.loads(data) if data else []
+
+        # 获取论文背景
+        context_key = f"paper_context:{session_id}"
+        paper_summary = self.redis.get(context_key) or "未提供论文背景。"
+
+        # 始终将最新的背景作为第一条 System Prompt
+        system_prompt = f"你是一个专业的学术助手。以下是论文的分析背景：\n{paper_summary}"
+        
+        return [{"role": "system", "content": system_prompt}] + history
 
     def save_history(self, session_id, messages):
-        """保存历史记录并刷新过期时间"""
-        key = self._get_key(session_id)
-        # 只保留最近 15 轮对话，防止 Token 溢出
-        if len(messages) > 31:  # 1 system + 15 user + 15 assistant
-            messages = [messages[0]] + messages[-30:]
+        """只保存用户和助手的对话部分，不重复保存 System Prompt"""
+        key = f"chat_history:{session_id}"
+        # 过滤掉 system 消息，只存 user 和 assistant 的对话
+        chat_only = [m for m in messages if m['role'] != 'system']
+        
+        # 限制长度 (保留最近 20 条记录)
+        if len(chat_only) > 20:
+            chat_only = chat_only[-20:]
 
-        self.redis.setex(key, self.expire, json.dumps(messages))
+        self.redis.setex(key, self.expire, json.dumps(chat_only))
 
     
     def clear_history(self, session_id):

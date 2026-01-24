@@ -1,3 +1,4 @@
+from langchain_core.messages import HumanMessage
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.output_parsers import StrOutputParser
@@ -5,43 +6,34 @@ from app.utils.get_config import get_openai_config
 from app.utils.get_prompts import get_summary_prompt
 from app.utils.chat_manager import ChatContextManager
 
-def get_ocr_chain():
+def get_model():
     config = get_openai_config()
-    # 实例化 OCR 模型
-    llm = ChatOpenAI(
-        model="deepseek-ocr",
-        openai_api_key=config['api_key'],
-        openai_api_base=config['base_url']
-    )
-    
-    # 定义 OCR Prompt
-    prompt = ChatPromptTemplate.from_messages([
-        ("user", [
-            {"type": "text", "text": "请识别这张论文图片中的文字，保持排版逻辑"},
-            {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,{base64_img}"}}
-        ])
-    ])
-    
-    return prompt | llm | StrOutputParser()
-
-def get_summary_chain():
-    config = get_openai_config()
-    # 实例化总结模型
-    llm = ChatOpenAI(
-        model="deepseek-v3.2",
+    return ChatOpenAI(
+        model="gemini-3-flash-preview-free",
         openai_api_key=config['api_key'],
         openai_api_base=config['base_url'],
-        temperature=0.1,
-        streaming=True
+        temperature=config['temperature'],
+        max_tokens=config['max_tokens']
     )
-    
+
+def process_paper(img_list, size):
+    llm = get_model()
     prompt_data = get_summary_prompt()
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", prompt_data['system_prompt']),
-        ("user", prompt_data['req'])
-    ])
+
+    # 构建多模态消息内容
+    content = [
+        {"type": "text", "text": prompt_data['req'].format(size=size)}
+    ]
+
+    for img_bytes in img_list:
+        content.append({
+            "type": "image_url",
+            "image_url": {"url": f"data:image/jpeg;base64,{img_bytes}"}
+        })
     
-    return prompt | llm | StrOutputParser()
+    message = HumanMessage(content=content)
+
+    return llm.stream([message])
 
 
 def get_chat_chain(session_id: str):
@@ -52,7 +44,7 @@ def get_chat_chain(session_id: str):
     existing_history = chat_manager.get_history(session_id)
     
     llm = ChatOpenAI(
-        model="deepseek-v3.2",
+        model="gemini-3-flash-preview-free",
         openai_api_key=config['api_key'],
         openai_api_base=config['base_url']
     )
