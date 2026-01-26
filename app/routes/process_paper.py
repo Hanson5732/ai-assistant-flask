@@ -6,6 +6,7 @@ from app.utils.pdf_handler import PDFHandler
 from app.constant.standard_response import Response
 from app.utils.chat_manager import ChatContextManager
 from app.api_functions.contextual_QA import process_paper, get_chat_chain
+from app.utils.get_prompts import get_summary_prompt
 
 ocr_bp = Blueprint('ocr', __name__)
 pdf_handler = PDFHandler()
@@ -44,7 +45,19 @@ def concurrent_langchain():
 
             # 3. 保存到 Redis 历史
             if full_summary_text:
-                chat_manager.save_history(session_id, full_summary_text)
+                prompt = get_summary_prompt()
+
+                user_content = [{"type": "text", "text": prompt['req'].format(size=size)}]
+                user_content.extend([
+                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img}"}} for img in img_list
+                ])
+
+                messages = [
+                    {"role": "system", "content": prompt['system_prompt']},
+                    {"role": "user", "content": user_content},
+                    {"role": "assistant", "content": full_summary_text}
+                ]
+                chat_manager.save_history(session_id, messages)
 
         except Exception as e:
             logger.error(f"Gemini Workflow error: {str(e)}", exc_info=True)
@@ -65,7 +78,7 @@ def chat():
     
     
     def generate():
-        chain = get_chat_chain(session_id)
+        chain = get_chat_chain()
         history_msgs = chat_manager.get_history(session_id)
     
         full_response = ""
@@ -81,6 +94,6 @@ def chat():
         # 更新历史记录
         history_msgs.append({"role": "user", "content": user_input})
         history_msgs.append({"role": "assistant", "content": full_response})
-        chat_manager.save_paper_context(session_id, history_msgs)
+        chat_manager.save_history(session_id, history_msgs)
     
     return FlaskResponse(generate(), mimetype='text/event-stream')

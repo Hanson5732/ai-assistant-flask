@@ -19,7 +19,8 @@ def get_openai_config():
         'api_key': openai_config.get('OPENAI_API_KEY'),
         'base_url': openai_config.get('BASE_URL'),
         'max_tokens': int(openai_config.get('MAX_TOKENS')),
-        'temperature': float(openai_config.get('TEMPERATURE'))
+        'temperature': float(openai_config.get('TEMPERATURE')),
+        'model': openai_config.get('MODEL')
     }
 
 

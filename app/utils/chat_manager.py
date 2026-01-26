@@ -16,10 +16,20 @@ class ChatContextManager:
     def _get_key(self, session_id):
         return f"chat_history:{session_id}"
 
-    def save_paper_context(self, session_id, summary_text):
+    def _get_index_key(self):
+        return "chat_sessions_index"
+
+    def save_history(self, session_id, messages):
         """专门保存论文总结作为后续对话的持久背景"""
-        key = f"paper_context:{session_id}"
-        self.redis.setex(key, self.expire, summary_text)
+        key = f"chat_history:{session_id}"
+        chat_only = [m for m in messages if isinstance(m, dict) and m.get('role') != 'system']
+
+        if len(chat_only) > 20:
+            chat_only = chat_only[-20:]
+
+        serialized_data = json.dumps(chat_only)
+        self.redis.setex(key, self.expire, serialized_data)
+        self.redis.sadd(self._get_index_key(), session_id)
 
     def get_history(self, session_id):
         """获取历史记录，并将论文背景注入到 System Message 中"""
@@ -29,27 +39,27 @@ class ChatContextManager:
         history = json.loads(data) if data else []
 
         # 获取论文背景
-        context_key = f"paper_context:{session_id}"
-        paper_summary = self.redis.get(context_key) or "未提供论文背景。"
+        context_key = f"chat_history:{session_id}"
+        paper_summary = self.redis.get(context_key)
 
         # 始终将最新的背景作为第一条 System Prompt
-        system_prompt = f"你是一个专业的学术助手。以下是论文的分析背景：\n{paper_summary}"
+        system_prompt = f"You are a professional academic assistant. The following is the analysis background of the paper:\n{paper_summary}"
         
         return [{"role": "system", "content": system_prompt}] + history
-
-    def save_history(self, session_id, messages):
-        """只保存用户和助手的对话部分，不重复保存 System Prompt"""
-        key = f"chat_history:{session_id}"
-        # 过滤掉 system 消息，只存 user 和 assistant 的对话
-        chat_only = [m for m in messages if m['role'] != 'system']
-        
-        # 限制长度 (保留最近 20 条记录)
-        if len(chat_only) > 20:
-            chat_only = chat_only[-20:]
-
-        self.redis.setex(key, self.expire, json.dumps(chat_only))
 
     
     def clear_history(self, session_id):
         """清除历史记录"""
         self.redis.delete(self._get_key(session_id))
+
+    
+    def get_all_sessions(self):
+        """获取所有已存在的 session_id 列表"""
+        return self.redis.smembers(self._get_index_key())
+
+
+    def get_session_detail(self, session_id):
+        """获取某个特定 session 的对话内容"""
+        key = f"chat_history:{session_id}"
+        data = self.redis.get(key)
+        return json.loads(data) if data else []
