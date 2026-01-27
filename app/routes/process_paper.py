@@ -1,6 +1,7 @@
 import base64
 import uuid
 import logging
+import re
 from flask import request, Blueprint, Response as FlaskResponse
 from app.utils.pdf_handler import PDFHandler
 from app.constant.standard_response import Response
@@ -47,17 +48,23 @@ def concurrent_langchain():
             if full_summary_text:
                 prompt = get_summary_prompt()
 
+                if 'Title:' in full_summary_text:
+                    title_match = re.search(r'Title:\s*(.+)$', full_summary_text, re.MULTILINE)
+                    if title_match: 
+                        title = title_match.group(1).strip()
+
                 user_content = [{"type": "text", "text": prompt['req'].format(size=size)}]
                 user_content.extend([
                     {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img}"}} for img in img_list
                 ])
 
                 messages = [
-                    {"role": "system", "content": prompt['system_prompt']},
                     {"role": "user", "content": user_content},
                     {"role": "assistant", "content": full_summary_text}
                 ]
-                chat_manager.save_history(session_id, messages)
+
+                chat_history = {"title": title, "messages": [messages]}
+                chat_manager.add_history(session_id, chat_history)
 
         except Exception as e:
             logger.error(f"Gemini Workflow error: {str(e)}", exc_info=True)
@@ -92,8 +99,7 @@ def chat():
             yield content
     
         # 更新历史记录
-        history_msgs.append({"role": "user", "content": user_input})
-        history_msgs.append({"role": "assistant", "content": full_response})
-        chat_manager.save_history(session_id, history_msgs)
+        messages = [{"role": "user", "content": user_input}, {"role": "assistant", "content": full_response}]
+        chat_manager.save_history(session_id, messages)
     
     return FlaskResponse(generate(), mimetype='text/event-stream')

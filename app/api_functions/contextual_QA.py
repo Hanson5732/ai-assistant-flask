@@ -46,8 +46,8 @@ def get_chat_chain():
     )
 
     # 构造包含历史记录的 Prompt
-    prompt = ChatPromptTemplate.from_mesges([
-        ("system", "你是一个论文分析助手。请基于上方提供的论文原文和之前的对话历史回答用户问题。"),
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", "You are a thesis analysis assistant. Please answer the user's questions based on the original thesis image provided above and the previous conversation history."),
         MessagesPlaceholder(variable_name="history"),
         ("user", "{input}")
     ])

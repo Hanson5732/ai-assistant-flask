@@ -19,17 +19,31 @@ class ChatContextManager:
     def _get_index_key(self):
         return "chat_sessions_index"
 
+    def add_history(self, session_id, chat_history):
+        """添加历史记录"""
+        key = self._get_key(session_id)
+        serialized_data = json.dumps(chat_history)
+        self.redis.setex(key, self.expire, serialized_data)
+        self.redis.sadd(self._get_index_key(), session_id)
+
+
     def save_history(self, session_id, messages):
         """专门保存论文总结作为后续对话的持久背景"""
         key = f"chat_history:{session_id}"
         chat_only = [m for m in messages if isinstance(m, dict) and m.get('role') != 'system']
 
-        if len(chat_only) > 20:
-            chat_only = chat_only[-20:]
+        pairs = []
+        for i in range(0, len(chat_only), 2):
+            if i + 1 < len(chat_only):
+                pairs.append([chat_only[i], chat_only[i+1]])
+            else:
+                pairs.append([chat_only[i]])
 
-        serialized_data = json.dumps(chat_only)
-        self.redis.setex(key, self.expire, serialized_data)
-        self.redis.sadd(self._get_index_key(), session_id)
+        existing_data_json = self.redis.get(key)
+        data = json.load(existing_data_json)
+        data['messages'].extend(pairs)
+        self.redis.setex(key, self.expire, json.dumps(data))
+
 
     def get_history(self, session_id):
         """获取历史记录，并将论文背景注入到 System Message 中"""
@@ -37,15 +51,15 @@ class ChatContextManager:
         history_key = f"chat_history:{session_id}"
         data = self.redis.get(history_key)
         history = json.loads(data) if data else []
+        raw_messages = history['messages']
+        messages = []
+        for pair in raw_messages:
+            if len(pair) == 2:
+                messages.extend(pair)
+            else:
+                messages.append(pair[0])
 
-        # 获取论文背景
-        context_key = f"chat_history:{session_id}"
-        paper_summary = self.redis.get(context_key)
-
-        # 始终将最新的背景作为第一条 System Prompt
-        system_prompt = f"You are a professional academic assistant. The following is the analysis background of the paper:\n{paper_summary}"
-        
-        return [{"role": "system", "content": system_prompt}] + history
+        return messages
 
     
     def clear_history(self, session_id):
