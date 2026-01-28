@@ -40,7 +40,7 @@ def get_chat_chain():
 
     
     llm = ChatOpenAI(
-        model="gemini-2.0-flash-free",
+        model="gemini-2.5-flash",
         openai_api_key=config['api_key'],
         openai_api_base=config['base_url']
     )

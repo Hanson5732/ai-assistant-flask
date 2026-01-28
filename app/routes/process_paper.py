@@ -64,7 +64,7 @@ def concurrent_langchain():
                 ]
 
                 chat_history = {"title": title, "messages": [messages]}
-                chat_manager.add_history(session_id, chat_history)
+                chat_manager.add_history(session_id, chat_history, title)
 
         except Exception as e:
             logger.error(f"Gemini Workflow error: {str(e)}", exc_info=True)

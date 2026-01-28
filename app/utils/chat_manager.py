@@ -19,12 +19,12 @@ class ChatContextManager:
     def _get_index_key(self):
         return "chat_sessions_index"
 
-    def add_history(self, session_id, chat_history):
+    def add_history(self, session_id, chat_history, title):
         """添加历史记录"""
         key = self._get_key(session_id)
         serialized_data = json.dumps(chat_history)
         self.redis.setex(key, self.expire, serialized_data)
-        self.redis.sadd(self._get_index_key(), session_id)
+        self.redis.hset(self._get_index_key(), session_id, title)
 
 
     def save_history(self, session_id, messages):
@@ -40,7 +40,7 @@ class ChatContextManager:
                 pairs.append([chat_only[i]])
 
         existing_data_json = self.redis.get(key)
-        data = json.load(existing_data_json)
+        data = json.loads(existing_data_json)
         data['messages'].extend(pairs)
         self.redis.setex(key, self.expire, json.dumps(data))
 
@@ -64,16 +64,23 @@ class ChatContextManager:
     
     def clear_history(self, session_id):
         """清除历史记录"""
-        self.redis.delete(self._get_key(session_id))
+        self.redis.delete(f"chat_history:{session_id}")
+        self.redis.hdel(self._get_index_key(), session_id)
 
     
     def get_all_sessions(self):
         """获取所有已存在的 session_id 列表"""
-        return self.redis.smembers(self._get_index_key())
+        return self.redis.hgetall(self._get_index_key())
 
 
     def get_session_detail(self, session_id):
         """获取某个特定 session 的对话内容"""
         key = f"chat_history:{session_id}"
-        data = self.redis.get(key)
-        return json.loads(data) if data else []
+        json_data = self.redis.get(key)
+        raw_data = json.loads(json_data)
+
+        title = raw_data['title']
+        summary = raw_data['messages'][0][1]['content']
+        messages = raw_data['messages'][1:]
+
+        return {"title": title, "summary": summary, "messages": messages}
