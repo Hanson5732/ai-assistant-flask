@@ -26,11 +26,7 @@ def reset_chat():
 @chat_bp.route('/sessions', methods=['GET'])
 def list_sessions():
     sessions = chat_manager.get_all_sessions()
-    result = [
-        {"id": sid, "title": title} 
-        for sid, title in sessions.items()
-    ]
-    return Response.success_with_data(message="Success", data=result)
+    return Response.success_with_data(message="Success", data=sessions)
 
 
 @chat_bp.route('/session/<session_id>', methods=['GET'])

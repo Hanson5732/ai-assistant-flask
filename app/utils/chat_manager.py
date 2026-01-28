@@ -1,6 +1,7 @@
 import redis
 import json
 from app.utils.get_config import get_redis_config
+import time
 
 class ChatContextManager:
     def __init__(self, expire=3600*24*7):
@@ -9,22 +10,25 @@ class ChatContextManager:
             host=redis_config['host'], 
             port=redis_config['port'], 
             db=redis_config['db'], 
-            password=redis_config['password'], 
-            decode_responses=True)
+            password=redis_config['password'])
         self.expire = expire
 
     def _get_key(self, session_id):
         return f"chat_history:{session_id}"
 
-    def _get_index_key(self):
+    def _get_session_key(self):
         return "chat_sessions_index"
+
+    def _get_session_time_key(self):
+        return "chat_sessions_time_index"
 
     def add_history(self, session_id, chat_history, title):
         """添加历史记录"""
         key = self._get_key(session_id)
         serialized_data = json.dumps(chat_history)
         self.redis.setex(key, self.expire, serialized_data)
-        self.redis.hset(self._get_index_key(), session_id, title)
+        self.redis.zadd(self._get_session_time_key(), {session_id: time.time()})
+        self.redis.hset(self._get_session_key(), session_id, title)
 
 
     def save_history(self, session_id, messages):
@@ -43,6 +47,7 @@ class ChatContextManager:
         data = json.loads(existing_data_json)
         data['messages'].extend(pairs)
         self.redis.setex(key, self.expire, json.dumps(data))
+        self.redis.zadd(self._get_session_time_key(), {session_id: time.time()})
 
 
     def get_history(self, session_id):
@@ -65,22 +70,54 @@ class ChatContextManager:
     def clear_history(self, session_id):
         """清除历史记录"""
         self.redis.delete(f"chat_history:{session_id}")
-        self.redis.hdel(self._get_index_key(), session_id)
+        self.redis.zrem(self._get_session_time_key(), session_id)
+        self.redis.hdel(self._get_session_key(), session_id)
 
     
     def get_all_sessions(self):
         """获取所有已存在的 session_id 列表"""
-        return self.redis.hgetall(self._get_index_key())
+        session_ids = self.redis.zrevrange(self._get_session_time_key(), 0, -1)
+        titles = self.redis.hgetall(self._get_session_key())
+        
+        result = []
+        for sid in session_ids:
+            sid_str = sid.decode('utf-8')
+            raw_title = titles.get(sid, b"Unknown Session")
+            title_str = raw_title.decode('utf-8', errors = 'ignore')
+            result.append({
+                "id": sid_str, 
+                "title": title_str
+            })
+
+        return result
 
 
     def get_session_detail(self, session_id):
         """获取某个特定 session 的对话内容"""
         key = f"chat_history:{session_id}"
-        json_data = self.redis.get(key)
-        raw_data = json.loads(json_data)
+        raw_bytes = self.redis.get(key)
+    
+        if not raw_bytes:
+            return None
 
-        title = raw_data['title']
-        summary = raw_data['messages'][0][1]['content']
-        messages = raw_data['messages'][1:]
+        try:
+            json_data = raw_bytes.decode('utf-8', errors='ignore')
+            raw_data = json.loads(json_data)
+            title = raw_data.get('title', 'Unkown title')
 
-        return {"title": title, "summary": summary, "messages": messages}
+            messages_list = raw_data.get('messages', [])
+            summary = ""
+            messages = []
+
+            if len(messages_list) > 0:
+                summary = messages_list[0][1]['content'] if len(messages_list[0]) > 1 else ""
+                messages = messages_list[1:]
+
+            return {
+                "title": title, 
+                "summary": summary, 
+                "messages": messages
+            }
+        except Exception as e:
+            print(f"解析 Session {session_id} 失败: {e}")
+            return None
