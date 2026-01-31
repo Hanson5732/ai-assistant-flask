@@ -1,10 +1,13 @@
 from flask import Flask
 from flask_cors import CORS
 import logging
+from flask_sqlalchemy import SQLAlchemy
+from app.utils.get_config import get_mysql_config
 
 from app.routes.chat import chat_bp
 from app.routes.process_paper import ocr_bp
 
+db = SQLAlchemy()
 def create_app():
     app = Flask(__name__)
 
@@ -22,6 +25,15 @@ def create_app():
             logging.FileHandler("app.log")
         ]
     )
+
+    mysql_config = get_mysql_config()
+    app.config['SQLALCHEMY_DATABASE_URI'] = (
+        f'mysql+pymysql://{mysql_config["user"]}:{mysql_config["password"]}'
+        f'@{mysql_config["host"]}:{mysql_config["port"]}/{mysql_config["database"]}'
+    )
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    
+    db.init_app(app)
 
 
     # 注册路由

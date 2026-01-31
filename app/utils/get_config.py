@@ -1,5 +1,6 @@
 import configparser
 
+
 def get_oss_config():
     config = configparser.ConfigParser()
     config.read('config.ini', encoding='utf-8')
@@ -10,6 +11,7 @@ def get_oss_config():
         'region': oss_config.get('OSS_REGION'),
         'bucket_name': oss_config.get('OSS_BUCKET_NAME')
     }
+
 
 def get_openai_config():
     config = configparser.ConfigParser()
@@ -33,4 +35,17 @@ def get_redis_config():
         'port': int(redis_config.get('REDIS_PORT')),
         'db': int(redis_config.get('REDIS_DB')),
         'password': redis_config.get('REDIS_PASSWORD')
+    }
+
+
+def get_mysql_config():
+    config = configparser.ConfigParser()
+    config.read('config.ini', encoding='utf-8')
+    mysql_config = config['mysql']
+    return {
+        'host': mysql_config.get('MYSQL_HOST'),
+        'port': int(mysql_config.get('MYSQL_PORT')),
+        'user': mysql_config.get('MYSQL_USER'),
+        'password': mysql_config.get('MYSQL_PASSWORD'),
+        'database': mysql_config.get('MYSQL_DATABASE')
     }

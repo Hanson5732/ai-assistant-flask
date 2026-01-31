@@ -3,7 +3,6 @@ from app.utils.chat_manager import ChatContextManager
 from flask import request, Blueprint
 import openai
 from app.constant.standard_response import Response
-from app.api_functions.contextual_QA import get_chat_chain
 
 
 chat_bp = Blueprint('chat', __name__)
@@ -29,7 +28,15 @@ def list_sessions():
     return Response.success_with_data(message="Success", data=sessions)
 
 
-@chat_bp.route('/session/<session_id>', methods=['GET'])
-def get_session(session_id):
-    history = chat_manager.get_session_detail(session_id)
+@chat_bp.route('/session/<session_id>/summary', methods=['GET'])
+def get_session_title(session_id):
+    summary = chat_manager.get_session_summary(session_id)
+    return Response.success_with_data(message="Success", data=summary)
+
+
+@chat_bp.route('/session/<session_id>/messages', methods=['GET'])
+def get_session_messages(session_id):
+    page = int(request.args.get('page', 1))
+
+    history = chat_manager.get_session_messages(session_id, page)
     return Response.success_with_data(message="Success", data=history)

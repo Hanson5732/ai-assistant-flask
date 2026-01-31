@@ -1,7 +1,11 @@
 config.ini
 
-#python
+
+# python
 __pycache__/
 *.pyc
 
 *.log
+
+
+test_db_connection.py

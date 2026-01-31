@@ -92,7 +92,7 @@ class ChatContextManager:
         return result
 
 
-    def get_session_detail(self, session_id):
+    def get_session_summary(self, session_id):
         """获取某个特定 session 的对话内容"""
         key = f"chat_history:{session_id}"
         raw_bytes = self.redis.get(key)
@@ -107,16 +107,48 @@ class ChatContextManager:
 
             messages_list = raw_data.get('messages', [])
             summary = ""
-            messages = []
 
             if len(messages_list) > 0:
                 summary = messages_list[0][1]['content'] if len(messages_list[0]) > 1 else ""
-                messages = messages_list[1:]
 
             return {
                 "title": title, 
-                "summary": summary, 
-                "messages": messages
+                "summary": summary
+            }
+        except Exception as e:
+            print(f"解析 Session {session_id} 失败: {e}")
+            return None
+
+
+    def get_session_messages(self, session_id, page):
+        key = f"chat_history:{session_id}"
+        raw_bytes = self.redis.get(key)
+
+        if not raw_bytes:
+            return None
+
+        try:
+            json_data = raw_bytes.decode('utf-8', errors='ignore')
+            raw_data = json.loads(json_data)
+
+            messages_list = raw_data.get('messages', [])
+            chat_messages = messages_list[1:]
+            total_chat_len = len(chat_messages)
+
+            limit = 3
+            end = total_chat_len - ((page - 1) * limit)
+            start = total_chat_len - (page * limit)
+
+            if end <= 0:
+                return {"messages": [], "more": False}
+
+            actual_start = max(0, start)
+            paginated_chat = chat_messages[actual_start:end]
+            has_more = start > 0
+
+            return {
+                "messages": paginated_chat,
+                "more": has_more
             }
         except Exception as e:
             print(f"解析 Session {session_id} 失败: {e}")

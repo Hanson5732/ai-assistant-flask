@@ -3,7 +3,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from app.utils.get_config import get_openai_config
 from app.utils.get_prompts import get_summary_prompt
-from app.utils.chat_manager import ChatContextManager
+
 
 def get_model():
     config = get_openai_config()
@@ -14,6 +14,7 @@ def get_model():
         temperature=config['temperature'],
         max_tokens=config['max_tokens']
     )
+
 
 def process_paper(img_list, size):
     llm = get_model()
