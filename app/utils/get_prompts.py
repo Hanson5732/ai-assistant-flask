@@ -9,3 +9,9 @@ def get_summary_prompt():
         'req': summary_prompt.get('REQ')
     }
     
+
+def get_metadata_prompt():
+    config = configparser.ConfigParser(delimiters=('='), interpolation=None)
+    config.read('prompts.ini', encoding='utf-8')
+    metadata_prompt = config['extract_metadata']
+    return metadata_prompt.get('PROMPT')

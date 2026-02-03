@@ -20,7 +20,6 @@ def get_openai_config():
     return {
         'api_key': openai_config.get('OPENAI_API_KEY'),
         'base_url': openai_config.get('BASE_URL'),
-        'max_tokens': int(openai_config.get('MAX_TOKENS')),
         'temperature': float(openai_config.get('TEMPERATURE')),
         'model': openai_config.get('MODEL')
     }
@@ -48,4 +47,15 @@ def get_mysql_config():
         'user': mysql_config.get('MYSQL_USER'),
         'password': mysql_config.get('MYSQL_PASSWORD'),
         'database': mysql_config.get('MYSQL_DATABASE')
+    }
+
+
+def get_ocr_config():
+    config = configparser.ConfigParser()
+    config.read('config.ini', encoding='utf-8')
+    ocr_config = config['ocr']
+    return {
+        'ocr_api_key': ocr_config.get('OCR_API_KEY'),
+        'ocr_base_url': ocr_config.get('OCR_BASE_URL'),
+        'model': ocr_config.get('MODEL')
     }

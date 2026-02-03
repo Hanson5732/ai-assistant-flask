@@ -1,5 +1,5 @@
 from langchain_core.messages import HumanMessage
-from langchain_openai import ChatOpenAI
+from langchain_community.chat_models import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from app.utils.get_config import get_openai_config
 from app.utils.get_prompts import get_summary_prompt
@@ -11,13 +11,20 @@ def get_model():
         model=config['model'],
         openai_api_key=config['api_key'],
         openai_api_base=config['base_url'],
-        temperature=config['temperature'],
-        max_tokens=config['max_tokens']
+        temperature=config['temperature']
     )
 
 
 def process_paper(img_list, size):
+    if size == 'small':
+        max_tokens = 512
+    elif size == 'medium':
+        max_tokens = 1024
+    else:
+        max_tokens = 2048
+
     llm = get_model()
+    llm.max_tokens = max_tokens
     prompt_data = get_summary_prompt()
 
     # 构建多模态消息内容

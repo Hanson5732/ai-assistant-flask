@@ -144,10 +144,11 @@ class ChatContextManager:
 
             actual_start = max(0, start)
             paginated_chat = chat_messages[actual_start:end]
+            paginated_chat_reverse = paginated_chat[::-1]
             has_more = start > 0
 
             return {
-                "messages": paginated_chat,
+                "messages": paginated_chat_reverse,
                 "more": has_more
             }
         except Exception as e:

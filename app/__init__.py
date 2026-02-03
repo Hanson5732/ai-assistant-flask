@@ -4,9 +4,6 @@ import logging
 from flask_sqlalchemy import SQLAlchemy
 from app.utils.get_config import get_mysql_config
 
-from app.routes.chat import chat_bp
-from app.routes.process_paper import ocr_bp
-
 db = SQLAlchemy()
 def create_app():
     app = Flask(__name__)
@@ -37,8 +34,12 @@ def create_app():
 
 
     # 注册路由
+    from app.routes.chat import chat_bp
+    from app.routes.process_paper import ocr_bp
+    from app.routes.bibli_storage import bibli_bp
     app.register_blueprint(chat_bp, url_prefix='/api/chat')
-    app.register_blueprint(ocr_bp)
+    app.register_blueprint(ocr_bp, url_prefix='/api/ocr')
+    app.register_blueprint(bibli_bp, url_prefix='/api/bibli')
 
     
     return app

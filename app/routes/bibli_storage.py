@@ -1,0 +1,86 @@
+from flask import Blueprint, request, jsonify
+from app import db
+from app.models.paper import Paper, Reference
+from app.utils.file_utils import calculate_file_hash
+from app.utils.pdf_handler import PDFHandler
+from app.api_functions.bibliography import extract_chain
+import json
+from app.constant.standard_response import Response
+from app.routes.oss_storage import upload_to_oss
+
+bibli_bp = Blueprint('bibli_storage', __name__)
+pdf_handler = PDFHandler()
+
+@bibli_bp.route('/upload', methods=['POST'])
+def upload_paper():
+    file = request.files.get('file')
+
+    if not file: return Response.error('No file part'), 400
+    
+    file_content = file.read()
+    if not pdf_handler.validate_pdf(file_content, file.filename):
+        return Response.error('Invalid PDF file'), 400
+
+    # 1. 计算文件哈希进行查重
+    file_hash = calculate_file_hash(file)
+    existing_paper = Paper.query.filter_by(file_hash=file_hash).first()
+
+    if existing_paper:
+        # 如果数据库已存在，直接返回存储的元数据
+        return Response.success_with_data(
+            message = "File already exists, retrieved from database",
+            data= {
+                "id": existing_paper.id,
+                "title": existing_paper.title,
+                "authors": existing_paper.get_authors(),
+                "year": existing_paper.pub_year,
+                "venue": existing_paper.venue,
+                "doi": existing_paper.doi
+            })
+
+    
+    try:
+        pdf_imgs = pdf_handler.convert_pdf_to_images(file_content)
+        llm_response = extract_chain(pdf_imgs)
+        
+        # 假设 LLM 返回的是标准 JSON 格式字符串
+        metadata = json.loads(llm_response)
+
+        # 4. 保存文件物理路径
+        file_url = upload_to_oss(file_content, file.filename)
+
+        # 5. 元数据入库
+        new_paper = Paper(
+            file_hash=file_hash,
+            title=metadata.get('title', file.filename),
+            pub_year=metadata.get('year'),
+            venue=metadata.get('venue'),
+            page_range=metadata.get('page_range'),
+            doi=metadata.get('doi'),
+            pdf_url=file_url
+        )
+        new_paper.set_authors(metadata.get('authors', []))
+        
+        db.session.add(new_paper)
+        db.session.flush() # 获取生成的 paper_id
+
+        # 6. 参考文献入库
+        references = metadata.get('references', [])
+        for idx, ref_text in enumerate(references):
+            new_ref = Reference(
+                paper_id=new_paper.id,
+                raw_text=ref_text,
+                order_num=idx + 1
+            )
+            db.session.add(new_ref)
+
+        db.session.commit()
+
+        return Response.success_with_data(
+            message = "Upload and analysis successful",
+            data= metadata
+        )
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500

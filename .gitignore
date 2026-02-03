@@ -6,6 +6,3 @@ __pycache__/
 *.pyc
 
 *.log
-
-
-test_db_connection.py

@@ -13,7 +13,7 @@ class Paper(db.Model):
     venue = db.Column(db.String(256)) # 期刊或会议
     doi = db.Column(db.String(128), index=True)
     pdf_url = db.Column(db.String(512)) # OSS或本地路径
-    abstract = db.Column(db.Text)
+    page_range = db.Column(db.String(64)) # 页码范围，如 "10-20"
     upload_time = db.Column(db.DateTime, default=datetime.now)
 
     # 建立与参考文献的一对多关系，cascade确保删除论文时自动删除参考文献
