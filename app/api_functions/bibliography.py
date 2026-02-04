@@ -9,7 +9,9 @@ def get_model():
     return ChatOpenAI(
         model=config['model'],
         openai_api_key=config['ocr_api_key'],
-        openai_api_base=config['ocr_base_url']
+        openai_api_base=config['ocr_base_url'],
+        streaming=False,
+        max_tokens=65000
     )
 
 def extract_chain(pdf_imgs):
@@ -29,4 +31,4 @@ def extract_chain(pdf_imgs):
 
     message = HumanMessage(content=content)
 
-    return llm.invoke([message])
+    return llm.invoke([message]).content

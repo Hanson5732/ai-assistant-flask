@@ -23,11 +23,15 @@ def calculate_file_hash(file_stream):
     计算文件的 SHA256 或 MD5 哈希值，用于查重
     """
     hash_func = hashlib.sha256()
-    # 确保指针在文件开头
-    file_stream.seek(0)
-    # 分块读取，防止大文件占用过多内存
-    for chunk in iter(lambda: file_stream.read(4096), b""):
-        hash_func.update(chunk)
-    # 重置指针，方便后续保存文件操作
-    file_stream.seek(0)
+
+    if isinstance(file_stream, bytes):
+        hash_func.update(file_stream)
+    else:
+        # 确保指针在文件开头
+        file_stream.seek(0)
+        # 分块读取，防止大文件占用过多内存
+        for chunk in iter(lambda: file_stream.read(4096), b""):
+            hash_func.update(chunk)
+        # 重置指针，方便后续保存文件操作
+        file_stream.seek(0)
     return hash_func.hexdigest()

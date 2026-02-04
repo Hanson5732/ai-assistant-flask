@@ -6,7 +6,8 @@ from app.utils.pdf_handler import PDFHandler
 from app.api_functions.bibliography import extract_chain
 import json
 from app.constant.standard_response import Response
-from app.routes.oss_storage import upload_to_oss
+# from app.routes.oss_storage import upload_to_oss
+import base64
 
 bibli_bp = Blueprint('bibli_storage', __name__)
 pdf_handler = PDFHandler()
@@ -22,7 +23,7 @@ def upload_paper():
         return Response.error('Invalid PDF file'), 400
 
     # 1. 计算文件哈希进行查重
-    file_hash = calculate_file_hash(file)
+    file_hash = calculate_file_hash(file_content)
     existing_paper = Paper.query.filter_by(file_hash=file_hash).first()
 
     if existing_paper:
@@ -40,14 +41,21 @@ def upload_paper():
 
     
     try:
-        pdf_imgs = pdf_handler.convert_pdf_to_images(file_content)
-        llm_response = extract_chain(pdf_imgs)
+        pdf_imgs = []
+        for img_bytes in pdf_handler.convert_pdf_to_images(file_content):
+            pdf_imgs.append(base64.b64encode(img_bytes).decode('utf-8'))
         
+        full_response = extract_chain(pdf_imgs).strip()
+        if full_response.startswith("```json"):
+            full_response = full_response.split("```json")[1].split("```")[0].strip()
+        elif full_response.startswith("```"):
+            full_response = full_response.split("```")[1].split("```")[0].strip()
+
         # 假设 LLM 返回的是标准 JSON 格式字符串
-        metadata = json.loads(llm_response)
+        metadata = json.loads(full_response)
 
         # 4. 保存文件物理路径
-        file_url = upload_to_oss(file_content, file.filename)
+        # file_url = upload_to_oss(file_content, file.filename)
 
         # 5. 元数据入库
         new_paper = Paper(
@@ -57,7 +65,7 @@ def upload_paper():
             venue=metadata.get('venue'),
             page_range=metadata.get('page_range'),
             doi=metadata.get('doi'),
-            pdf_url=file_url
+            pdf_url='file_url'
         )
         new_paper.set_authors(metadata.get('authors', []))
         
