@@ -6,7 +6,7 @@ from app.utils.pdf_handler import PDFHandler
 from app.api_functions.bibliography import extract_chain
 import json
 from app.constant.standard_response import Response
-# from app.routes.oss_storage import upload_to_oss
+from app.routes.oss_storage import upload_to_oss
 import base64
 
 bibli_bp = Blueprint('bibli_storage', __name__)
@@ -34,7 +34,7 @@ def upload_paper():
                 "id": existing_paper.id,
                 "title": existing_paper.title,
                 "authors": existing_paper.get_authors(),
-                "year": existing_paper.pub_year,
+                "pub_year": existing_paper.pub_year,
                 "venue": existing_paper.venue,
                 "doi": existing_paper.doi
             })
@@ -42,7 +42,9 @@ def upload_paper():
     
     try:
         pdf_imgs = []
-        for img_bytes in pdf_handler.convert_pdf_to_images(file_content):
+        all_pages = list(pdf_handler.convert_pdf_to_images(file_content))
+        selected_pages = all_pages[:1] + all_pages[-3:] if len(all_pages) > 4 else all_pages
+        for img_bytes in selected_pages:
             pdf_imgs.append(base64.b64encode(img_bytes).decode('utf-8'))
         
         full_response = extract_chain(pdf_imgs).strip()
@@ -55,13 +57,13 @@ def upload_paper():
         metadata = json.loads(full_response)
 
         # 4. 保存文件物理路径
-        # file_url = upload_to_oss(file_content, file.filename)
+        file_url = upload_to_oss(file_content, file.filename)
 
         # 5. 元数据入库
         new_paper = Paper(
             file_hash=file_hash,
             title=metadata.get('title', file.filename),
-            pub_year=metadata.get('year'),
+            pub_year=metadata.get('pub_year'),
             venue=metadata.get('venue'),
             page_range=metadata.get('page_range'),
             doi=metadata.get('doi'),
@@ -74,10 +76,12 @@ def upload_paper():
 
         # 6. 参考文献入库
         references = metadata.get('references', [])
-        for idx, ref_text in enumerate(references):
+        for idx, ref in enumerate(references):
             new_ref = Reference(
                 paper_id=new_paper.id,
-                raw_text=ref_text,
+                # 如果 ref 是字典，需要取其中的字符串字段
+                raw_text=ref.get('raw_text') if isinstance(ref, dict) else str(ref),
+                formatted_title=ref.get('formatted_title') if isinstance(ref, dict) else None,
                 order_num=idx + 1
             )
             db.session.add(new_ref)
@@ -90,5 +94,7 @@ def upload_paper():
         )
 
     except Exception as e:
+        import traceback
+        traceback.print_exc() # 在控制台打印完整的堆栈信息
         db.session.rollback()
         return jsonify({"error": str(e)}), 500

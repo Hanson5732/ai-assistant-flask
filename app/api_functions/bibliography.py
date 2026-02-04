@@ -10,6 +10,7 @@ def get_model():
         model=config['model'],
         openai_api_key=config['ocr_api_key'],
         openai_api_base=config['ocr_base_url'],
+        temperature=float(config['temperature']),
         streaming=False,
         max_tokens=65000
     )
