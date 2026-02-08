@@ -13,7 +13,8 @@ ocr_bp = Blueprint('ocr', __name__)
 pdf_handler = PDFHandler()
 logger = logging.getLogger(__name__)
 
-@ocr_bp.route('/api/process-paper', methods=['POST'])
+
+@ocr_bp.route('/process-paper', methods=['POST'])
 def concurrent_langchain():
     file = request.files.get('file')
     size = request.form.get('size', 'medium')
@@ -73,7 +74,7 @@ def concurrent_langchain():
     return FlaskResponse(generate_stream(), mimetype='text/event-stream')
 
 
-@ocr_bp.route('/api/chat', methods=['POST'])
+@ocr_bp.route('/chat', methods=['POST'])
 def chat():
     user_input = request.json.get('message')
     session_id = request.json.get('sessionId')

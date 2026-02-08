@@ -6,7 +6,7 @@ from app.utils.pdf_handler import PDFHandler
 from app.api_functions.bibliography import extract_chain
 import json
 from app.constant.standard_response import Response
-from app.routes.oss_storage import upload_to_oss
+from app.utils.file_utils import upload_file
 import base64
 
 bibli_bp = Blueprint('bibli_storage', __name__)
@@ -43,6 +43,8 @@ def upload_paper():
     try:
         pdf_imgs = []
         all_pages = list(pdf_handler.convert_pdf_to_images(file_content))
+
+        # 第一页和最后三页
         selected_pages = all_pages[:1] + all_pages[-3:] if len(all_pages) > 4 else all_pages
         for img_bytes in selected_pages:
             pdf_imgs.append(base64.b64encode(img_bytes).decode('utf-8'))
@@ -57,7 +59,7 @@ def upload_paper():
         metadata = json.loads(full_response)
 
         # 4. 保存文件物理路径
-        file_url = upload_to_oss(file_content, file.filename)
+        file_url = upload_file(file_content)
 
         # 5. 元数据入库
         new_paper = Paper(
@@ -67,7 +69,7 @@ def upload_paper():
             venue=metadata.get('venue'),
             page_range=metadata.get('page_range'),
             doi=metadata.get('doi'),
-            pdf_url='file_url'
+            pdf_url=file_url
         )
         new_paper.set_authors(metadata.get('authors', []))
         
@@ -98,3 +100,91 @@ def upload_paper():
         traceback.print_exc() # 在控制台打印完整的堆栈信息
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
+
+
+@bibli_bp.route('/list', methods=['GET'])
+def get_paper_list():
+    """
+    获取文献列表，按上传时间倒序排列
+    """
+    try:
+        # 按上传时间倒序查询
+        papers = Paper.query.order_by(Paper.upload_time.desc()).all()
+        
+        data = []
+        for p in papers:
+            # 处理作者列表：将 List 转为字符串 "Author1, Author2" 以便前端显示
+            authors_list = p.get_authors()
+            author_display = "Unknown"
+            if authors_list:
+                author_display = ", ".join(authors_list)
+            
+            data.append({
+                "id": p.id,
+                "title": p.title,
+                "author": author_display,    # 对应前端 item.author
+                "publish_date": str(p.pub_year) if p.pub_year else "N/A", # 对应前端 item.publish_date
+                "venue": p.venue,
+                "doi": p.doi
+            })
+
+        return Response.success_with_data(data=data, message="")
+
+    except Exception as e:
+        return Response.error(f"Access bibliography error: {str(e)}"), 500
+
+    
+@bibli_bp.route('/delete/<int:paper_id>', methods=['DELETE'])
+def delete_paper(paper_id):
+    """
+    删除指定文献及其关联数据
+    """
+    try:
+        paper = Paper.query.get(paper_id)
+        if not paper:
+            return Response.error("Bibliography not found"), 404
+
+        # 由于在 models.py 中配置了 cascade="all, delete-orphan"
+        # 删除 paper 会自动删除关联的 references
+        db.session.delete(paper)
+        db.session.commit()
+
+        return Response.success(message="Delete success")
+
+    except Exception as e:
+        db.session.rollback()
+        return Response.error(f"Delete failed: {str(e)}"), 500
+
+
+@bibli_bp.route('/detail/<int:paper_id>', methods=['GET'])
+def get_paper_detail(paper_id):
+    try:
+        paper = Paper.query.get(paper_id)
+        if not paper:
+            return Response.error("Paper not found"), 404
+        
+        # 格式化参考文献列表
+        refs = []
+        if paper.references:
+            for ref in paper.references:
+                refs.append({
+                    "id": ref.id,
+                    "text": ref.formatted_title or ref.raw_text,
+                    "order": ref.order_num
+                })
+
+        data = {
+            "id": paper.id,
+            "title": paper.title,
+            "authors": paper.get_authors(),
+            "pub_year": paper.pub_year,
+            "venue": paper.venue,
+            "doi": paper.doi,
+            "page_range": paper.page_range,
+            "pdf_url": paper.pdf_url,
+            "upload_time": paper.upload_time.strftime('%Y-%m-%d'),
+            "references": refs
+        }
+        return Response.success_with_data(data=data, message="")
+    except Exception as e:
+        return Response.error(f"Get paper detail failed: {str(e)}"), 500

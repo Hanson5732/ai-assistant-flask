@@ -1,21 +1,42 @@
 import oss2
 import hashlib
+import uuid
 from app.utils.get_config import get_oss_config
 
-def upload_file(file_path, object):
-    # read config
-    config = get_oss_config()
-    endpoint = f'https://oss-{config["region"]}.aliyuncs.com'
+# read config
+config = get_oss_config()
+endpoint = f'https://oss-{config["region"]}.aliyuncs.com'
+auth = oss2.Auth(config['access_key_id'], config['access_key_secret'])
+bucket = oss2.Bucket(auth, endpoint, config['bucket_name'])
+
+
+def upload_file(file_content, folder='papers'):
 
     # initial verification and bucket
-    auth = oss2.Auth(config['access_key_id'], config['access_key_secret'])
-    bucket = oss2.Bucket(auth, endpoint, config['bucket_name'])
+    unique_filename = f"{folder}/{uuid.uuid4()}"
+
+    url = f"https://{config['bucket_name']}.oss-{config['region']}.aliyuncs.com/{unique_filename}"
 
     try:
-        with open(file_path, 'rb') as file:
-            bucket.put_object(object, file)
+        bucket.put_object(unique_filename, file_content)
+        return url
     except Exception as e:
         print(f'upload file failed: {e}')
+
+
+def download_file(file_url):
+    """
+    从 OSS 下载文件
+    """
+    try:
+        # 从 URL 提取文件名
+        filename = file_url.split('/')[-1]
+        # 下载文件到本地
+        bucket.get_object_to_file(filename, filename)
+        return filename
+    except Exception as e:
+        print(f"download file failed: {e}")
+        return None
 
 
 def calculate_file_hash(file_stream):

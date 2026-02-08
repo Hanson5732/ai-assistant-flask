@@ -57,5 +57,6 @@ def get_ocr_config():
     return {
         'ocr_api_key': ocr_config.get('OCR_API_KEY'),
         'ocr_base_url': ocr_config.get('OCR_BASE_URL'),
-        'model': ocr_config.get('MODEL')
+        'model': ocr_config.get('MODEL'),
+        'temperature': float(ocr_config.get('TEMPERATURE'))
     }
