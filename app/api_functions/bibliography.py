@@ -12,7 +12,7 @@ def get_model():
         openai_api_base=config['ocr_base_url'],
         temperature=float(config['temperature']),
         streaming=False,
-        max_tokens=65000
+        max_tokens=int(config['max_token']),
     )
 
 def extract_chain(pdf_imgs):

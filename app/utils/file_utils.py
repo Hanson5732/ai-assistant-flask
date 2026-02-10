@@ -13,7 +13,7 @@ bucket = oss2.Bucket(auth, endpoint, config['bucket_name'])
 def upload_file(file_content, folder='papers'):
 
     # initial verification and bucket
-    unique_filename = f"{folder}/{uuid.uuid4()}"
+    unique_filename = f"{folder}/{uuid.uuid4()}.pdf"
 
     url = f"https://{config['bucket_name']}.oss-{config['region']}.aliyuncs.com/{unique_filename}"
 

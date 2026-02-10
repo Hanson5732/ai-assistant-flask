@@ -59,7 +59,7 @@ def upload_multi_papers():
             )
             new_paper.set_authors(metadata.get('authors', []))
             
-            b.session.add(new_paper)
+            db.session.add(new_paper)
             db.session.flush() # 获取生成的 paper_id
 
             # 6. 参考文献入库
@@ -140,6 +140,7 @@ def upload_paper():
             pdf_imgs.append(base64.b64encode(img_bytes).decode('utf-8'))
         
         full_response = extract_chain(pdf_imgs).strip()
+
         if full_response.startswith("```json"):
             full_response = full_response.split("```json")[1].split("```")[0].strip()
         elif full_response.startswith("```"):

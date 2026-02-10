@@ -76,8 +76,11 @@ def concurrent_langchain():
 
 @ocr_bp.route('/chat', methods=['POST'])
 def chat():
-    user_input = request.json.get('message')
-    session_id = request.json.get('sessionId')
+    data = request.json
+    user_input = data.get('message')
+    session_id = data.get('sessionId')
+    attached_paper_id = data.get('paperId', "")
+
 
     if not session_id:
         return Response.error('No sessionId provided'), 400
