@@ -30,8 +30,8 @@ def upload_multi_papers():
             pdf_imgs = []
             all_pages = list(pdf_handler.convert_pdf_to_images(file_content))
 
-            # 第一页和最后三页
-            selected_pages = all_pages[:1] + all_pages[-3:] if len(all_pages) > 4 else all_pages
+            # 前两页和最后三页
+            selected_pages = all_pages[:2] + all_pages[-3:] if len(all_pages) > 5 else all_pages
             for img_bytes in selected_pages:
                 pdf_imgs.append(base64.b64encode(img_bytes).decode('utf-8'))
         
@@ -132,10 +132,10 @@ def upload_paper():
     
     try:
         pdf_imgs = []
-        all_pages = list(pdf_handler.convert_pdf_to_images(file_content))
+        references_pages = pdf_handler.find_references_page(file_content)
+        selected_pages_list = [0, 1] + references_pages
+        selected_pages = list(pdf_handler.convert_pdf_to_images(file_content, page_list=selected_pages_list))
 
-        # 第一页和最后三页
-        selected_pages = all_pages[:1] + all_pages[-3:] if len(all_pages) > 4 else all_pages
         for img_bytes in selected_pages:
             pdf_imgs.append(base64.b64encode(img_bytes).decode('utf-8'))
         
@@ -196,30 +196,41 @@ def upload_paper():
 @bibli_bp.route('/list', methods=['GET'])
 def get_paper_list():
     """
-    获取文献列表，按上传时间倒序排列
+    获取文献列表，支持分页，每页8条数据
     """
     try:
-        # 按上传时间倒序查询
-        papers = Paper.query.order_by(Paper.upload_time.desc()).all()
+        # 获取页码，默认为第1页
+        page = request.args.get('page', 1, type=int)
+        per_page = 8  # 每页8条
+        
+        # 使用 paginate 进行分页查询
+        pagination = Paper.query.order_by(Paper.upload_time.desc()).paginate(
+            page=page, per_page=per_page, error_out=False
+        )
+        
+        papers = pagination.items
         
         data = []
         for p in papers:
-            # 处理作者列表：将 List 转为字符串 "Author1, Author2" 以便前端显示
             authors_list = p.get_authors()
-            author_display = "Unknown"
-            if authors_list:
-                author_display = ", ".join(authors_list)
+            author_display = ", ".join(authors_list) if authors_list else "Unknown"
             
             data.append({
                 "id": p.id,
                 "title": p.title,
-                "author": author_display,    # 对应前端 item.author
-                "publish_date": str(p.pub_year) if p.pub_year else "N/A", # 对应前端 item.publish_date
+                "author": author_display,
+                "publish_date": str(p.pub_year) if p.pub_year else "N/A",
                 "venue": p.venue,
                 "doi": p.doi
             })
 
-        return Response.success_with_data(data=data, message="")
+        # 返回数据中包含分页元信息
+        return Response.success_with_data(data={
+            "list": data,
+            "total": pagination.total,      # 总记录数
+            "pages": pagination.pages,      # 总页数
+            "current_page": pagination.page # 当前页码
+        }, message="")
 
     except Exception as e:
         return Response.error(f"Access bibliography error: {str(e)}"), 500

@@ -15,9 +15,9 @@ client = openai.OpenAI(
 )
 
 
-@chat_bp.route('/reset', methods=['POST'])
+@chat_bp.route('/delete', methods=['DELETE'])
 def reset_chat():
-    session_id = request.json.get('session_id')
+    session_id = request.path.split('/')[-1]
     chat_manager.clear_history(session_id)
     return Response.success("History cleared")
 
