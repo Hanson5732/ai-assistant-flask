@@ -37,9 +37,12 @@ def create_app():
     from app.routes.chat import chat_bp
     from app.routes.process_paper import ocr_bp
     from app.routes.bibli_storage import bibli_bp
+    from app.routes.folder import folder_bp
+
     app.register_blueprint(chat_bp, url_prefix='/api/chat')
     app.register_blueprint(ocr_bp, url_prefix='/api/ocr')
     app.register_blueprint(bibli_bp, url_prefix='/api/bibli')
+    app.register_blueprint(folder_bp, url_prefix='/api/folder')
 
     
     return app

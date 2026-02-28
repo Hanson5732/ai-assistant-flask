@@ -36,3 +36,20 @@ class Reference(db.Model):
 
     def __repr__(self):
         return f'<Reference {self.formatted_title}>'
+
+
+folder_paper = db.Table('folder_paper',
+    db.Column('folder_id', db.Integer, db.ForeignKey('folders.id'), primary_key=True),
+    db.Column('paper_id', db.Integer, db.ForeignKey('papers.id'), primary_key=True)
+)
+
+class Folder(db.Model):
+    __tablename__ = 'folders'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    name = db.Column(db.String(128), nullable=False)
+    create_time = db.Column(db.DateTime, default=datetime.now)
+
+    # 通过 secondary 关联到 Paper 模型
+    papers = db.relationship('Paper', secondary=folder_paper, lazy='subquery',
+                             backref=db.backref('folders', lazy=True))

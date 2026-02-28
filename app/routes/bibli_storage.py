@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request
 from app import db
 from app.models.paper import Paper, Reference
 from app.utils.file_utils import calculate_file_hash
@@ -290,3 +290,89 @@ def get_paper_detail(paper_id):
         return Response.success_with_data(data=data, message="")
     except Exception as e:
         return Response.error(f"Get paper detail failed: {str(e)}"), 500
+
+
+@bibli_bp.route('/update/<int:paper_id>', methods=['PUT'])
+def update_paper(paper_id):
+    """
+    修改指定文献的元数据
+    """
+    try:
+        paper = Paper.query.get(paper_id)
+        if not paper:
+            return Response.error("Paper not found"), 404
+        
+        data = request.json
+        if not data:
+            return Response.error("No data provided"), 400
+        
+        # 更新字段
+        if 'title' in data:
+            paper.title = data['title']
+        if 'pub_year' in data:
+            paper.pub_year = data['pub_year']
+        if 'venue' in data:
+            paper.venue = data['venue']
+        if 'doi' in data:
+            paper.doi = data['doi']
+        if 'page_range' in data:
+            paper.page_range = data['page_range']
+        if 'authors' in data:
+            # authors 期待的是一个列表
+            authors = data['authors']
+            if isinstance(authors, str):
+                # 如果传入的是逗号分隔的字符串，则转换成列表
+                authors = [a.strip() for a in authors.split(',') if a.strip()]
+            paper.set_authors(authors)
+
+        db.session.commit()
+        return Response.success(message="Update success")
+        
+    except Exception as e:
+        db.session.rollback()
+        return Response.error(f"Update failed: {str(e)}"), 500
+
+
+@bibli_bp.route('/search', methods=['POST'])
+def search_papers():
+    """
+    高级搜索文献 (根据题目、作者、年份区间、会议/期刊)
+    """
+    try:
+        data = request.json or {}
+        query = Paper.query
+
+        # 1. 题目 (模糊匹配)
+        if data.get('title'):
+            query = query.filter(Paper.title.ilike(f"%{data['title']}%"))
+            
+        # 2. 作者 (因为以 JSON 字符串存储，可用模糊匹配)
+        if data.get('author'):
+            query = query.filter(Paper.authors.ilike(f"%{data['author']}%"))
+            
+        # 3. 会议/期刊 (模糊匹配)
+        if data.get('venue'):
+            query = query.filter(Paper.venue.ilike(f"%{data['venue']}%"))
+            
+        # 4. 年份区间
+        if data.get('year_start'):
+            query = query.filter(Paper.pub_year >= int(data['year_start']))
+        if data.get('year_end'):
+            query = query.filter(Paper.pub_year <= int(data['year_end']))
+
+        papers = query.order_by(Paper.upload_time.desc()).all()
+        
+        result = []
+        for p in papers:
+            result.append({
+                "id": p.id,
+                "title": p.title,
+                "authors": p.get_authors(),
+                "pub_year": p.pub_year,
+                "venue": p.venue
+            })
+            
+        return Response.success_with_data(message="Success", data=result)
+        
+    except Exception as e:
+        return Response.error(f"Search failed: {str(e)}"), 500
