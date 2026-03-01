@@ -109,3 +109,34 @@ def get_folder_list():
         })
     except Exception as e:
         return Response.error(f"Failed to get folders: {str(e)}"), 500
+
+
+@folder_bp.route('/search', methods=['POST'])
+def search_folders():
+    """
+    模糊查询文件夹名字
+    """
+    try:
+        data = request.json or {}
+        name = data.get('name', '').strip()
+        
+        query = Folder.query
+        
+        if name:
+            query = query.filter(Folder.name.ilike(f"%{name}%"))
+            
+        folders = query.order_by(Folder.create_time.desc()).all()
+        
+        result = []
+        for f in folders:
+            result.append({
+                "id": f.id,
+                "name": f.name,
+                "paper_count": len(f.papers),
+                "create_time": f.create_time.strftime('%Y-%m-%d')
+            })
+            
+        return Response.success_with_data(message="Successfully searched folders", data=result)
+        
+    except Exception as e:
+        return Response.error(f"Search folders failed: {str(e)}"), 500
