@@ -79,7 +79,6 @@ def chat():
     data = request.json
     user_input = data.get('message')
     session_id = data.get('sessionId')
-    attached_paper_id = data.get('paperId', "")
 
 
     if not session_id:
