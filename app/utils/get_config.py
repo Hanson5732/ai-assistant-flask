@@ -61,3 +61,15 @@ def get_ocr_config():
         'temperature': float(ocr_config.get('TEMPERATURE')),
         'max_token': int(ocr_config.get('MAX_TOKEN')),
     }
+
+
+def get_review_config():
+    config = configparser.ConfigParser()
+    config.read('config.ini', encoding='utf-8')
+    review_config = config['review']
+    return {
+        'review_api_key': review_config.get('REVIEW_API_KEY'),
+        'review_base_url': review_config.get('REVIEW_BASE_URL'),
+        'model': review_config.get('MODEL'),
+        'temperature': float(review_config.get('TEMPERATURE'))
+    }

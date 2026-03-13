@@ -154,3 +154,51 @@ class ChatContextManager:
         except Exception as e:
             print(f"解析 Session {session_id} 失败: {e}")
             return None
+
+    
+    def _get_review_key(self, review_id):
+        return f"review_data:{review_id}"
+    
+    def _get_review_index_key(self):
+        return "review_sessions_index"
+
+    def _get_review_time_key(self):
+        return "review_sessions_time_index"
+
+    def add_review(self, review_id, content, title):
+        """保存生成的文献综述全文"""
+        key = self._get_review_key(review_id)
+        # 半永久存储，过期时间同设为 expire (默认7天)
+        self.redis.setex(key, self.expire, content)
+        self.redis.zadd(self._get_review_time_key(), {review_id: time.time()})
+        self.redis.hset(self._get_review_index_key(), review_id, title)
+
+    def get_all_reviews(self):
+        """获取所有已生成的文献综述列表"""
+        review_ids = self.redis.zrevrange(self._get_review_time_key(), 0, -1)
+        titles = self.redis.hgetall(self._get_review_index_key())
+        
+        result = []
+        for rid in review_ids:
+            rid_str = rid.decode('utf-8')
+            raw_title = titles.get(rid, b"Untitled Literature Review")
+            title_str = raw_title.decode('utf-8', errors='ignore')
+            result.append({
+                "id": rid_str, 
+                "title": title_str
+            })
+        return result
+
+    def get_review_detail(self, review_id):
+        """获取某篇文献综述的详细内容"""
+        key = self._get_review_key(review_id)
+        raw_bytes = self.redis.get(key)
+        if not raw_bytes:
+            return None
+        return raw_bytes.decode('utf-8', errors='ignore')
+
+    def clear_review(self, review_id):
+        """删除特定的文献综述"""
+        self.redis.delete(self._get_review_key(review_id))
+        self.redis.zrem(self._get_review_time_key(), review_id)
+        self.redis.hdel(self._get_review_index_key(), review_id)
