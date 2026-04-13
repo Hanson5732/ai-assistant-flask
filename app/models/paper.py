@@ -1,0 +1,66 @@
+from app import db
+from datetime import datetime
+import json
+
+class Paper(db.Model):
+    __tablename__ = 'papers'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    file_hash = db.Column(db.String(64), unique=True, nullable=False, index=True)
+    title = db.Column(db.String(512), nullable=False)
+    authors = db.Column(db.Text)  # 存储 JSON 格式的作者列表字符串
+    pub_year = db.Column(db.Integer)
+    venue = db.Column(db.String(256)) # 期刊或会议
+    doi = db.Column(db.String(128), index=True)
+    pdf_url = db.Column(db.String(512)) # OSS或本地路径
+    page_range = db.Column(db.String(64)) # 页码范围，如 "10-20"
+    upload_time = db.Column(db.DateTime, default=datetime.now)
+
+    # 建立与参考文献的一对多关系，cascade确保删除论文时自动删除参考文献
+    references = db.relationship('Reference', backref='paper', cascade="all, delete-orphan", lazy=True)
+
+    def set_authors(self, author_list):
+        self.authors = json.dumps(author_list, ensure_ascii=False)
+
+    def get_authors(self):
+        return json.loads(self.authors) if self.authors else []
+
+class Reference(db.Model):
+    __tablename__ = 'references'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    paper_id = db.Column(db.Integer, db.ForeignKey('papers.id'), nullable=False)
+    raw_text = db.Column(db.Text)
+    formatted_title = db.Column(db.String(512))
+    order_num = db.Column(db.Integer)
+
+    def __repr__(self):
+        return f'<Reference {self.formatted_title}>'
+
+
+folder_paper = db.Table('folder_paper',
+    db.Column('folder_id', db.Integer, db.ForeignKey('folders.id'), primary_key=True),
+    db.Column('paper_id', db.Integer, db.ForeignKey('papers.id'), primary_key=True)
+)
+
+class Folder(db.Model):
+    __tablename__ = 'folders'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    name = db.Column(db.String(128), nullable=False)
+    create_time = db.Column(db.DateTime, default=datetime.now)
+
+    # 通过 secondary 关联到 Paper 模型
+    papers = db.relationship('Paper', secondary=folder_paper, lazy='subquery',
+                             backref=db.backref('folders', lazy=True))
+
+
+class SessionPaperMapping(db.Model):
+    __tablename__ = 'session_paper_mapping'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    # session_id 是从前端传来或后端生成的 UUID，加 index 以加速查询
+    session_id = db.Column(db.String(128), nullable=False, index=True)
+    # 关联到 papers 表
+    paper_id = db.Column(db.Integer, db.ForeignKey('papers.id'), nullable=False)
+    create_time = db.Column(db.DateTime, default=datetime.now)
